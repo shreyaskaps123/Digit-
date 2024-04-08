@@ -1,0 +1,143 @@
+---
+title: "Recognizing Handwritten Numbers"
+jupyter: "myenv"
+---
+
+#### Neural Networks for Number Recognition
+
+Walking through the textbook on Deep Learning, [Understanding Deep Learning](https://udlbook.github.io/udlbook/), I aim to create different deep learning models to investigate their accuracy on the MNIST Handwritten Digit Algorithm
+
+To begin, a shallow neural network (neural network with one or two hidden layers) will be implemented. This approach is relatively straight forward, the architecture depicted below:
+
+![Shallow vs Deep Neural Network](images/NeuralNet.webp)
+
+The activation function used willl be the ReLU (the most common activation function)
+
+$$
+\text{ReLU}(z) = \max(0, z)
+$$
+
+```{python}
+#Importing dependencies
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+import zipfile
+data = pd.read_csv("train.csv")
+data.head()
+```
+
+Viewing the dataset, we see the above result, with one-hot encoded columns indicating pixel values. Since the data is black and white (with no colored images) our data preprocessing and training workflow is straightforward
+
+```{python}
+train_labels = data.iloc[:, 0].values  
+train_images = data.iloc[:, 1:].values
+train_images = train_images.reshape(-1, 28, 28, 1).astype('float32') / 255
+```
+
+```{python}
+from keras import layers
+from keras import models
+
+model = models.Sequential()
+
+model.add(
+    layers.Conv2D(32, (3, 3), 
+    activation='relu', 
+    input_shape=(28, 28, 1))
+)
+
+model.add(layers.MaxPooling2D((2, 2)))
+model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+model.add(layers.MaxPooling2D((2, 2)))
+model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+model.add(layers.Flatten())
+model.add(layers.Dense(64, activation='relu'))
+model.add(layers.Dense(10, activation='softmax'))
+
+model.compile(
+    optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy']
+)
+
+model.fit(
+    train_images, 
+    train_labels, 
+    epochs=5, 
+    batch_size=64
+)
+
+
+
+
+# Define and compile the model
+model = models.Sequential([
+    layers.Conv2D(32, (3, 3), activation='relu', input_shape=(28, 28, 1)),
+    layers.MaxPooling2D((2, 2)),
+    layers.Conv2D(64, (3, 3), activation='relu'),
+    layers.MaxPooling2D((2, 2)),
+    layers.Conv2D(64, (3, 3), activation='relu'),
+    layers.Flatten(),
+    layers.Dense(64, activation='relu'),
+    layers.Dense(10, activation='softmax')
+])
+
+model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+
+# Train the model
+model.fit(train_images, train_labels, epochs=5, batch_size=64)
+
+
+```
+
+```{python}
+model.save("KerasNeuralNetwork")
+```
+
+Now, we test the model on the seperate test_csv (normally the complete dataset would be partitioned into training and testing sets but in this case we are provided with a seperate testing set)
+
+```{python}
+import tkinter as tk
+from tkinter import Canvas, Button
+from PIL import Image, ImageDraw
+import numpy as np
+from keras.models import load_model
+
+model = load_model("/Users/shreyaskapavarapu/Python/KerasNeuralNetwork")
+
+window = tk.Tk()
+window.title("Handwritten Digit Recognition")
+
+canvas = Canvas(window, width=280, height=280, bg="white")
+canvas.pack()
+
+image = Image.new("L", (280, 280), "white")
+draw = ImageDraw.Draw(image)
+
+def draw_on_canvas(event):
+    x, y = event.x, event.y
+    r = 8
+    canvas.create_oval(x - r, y - r, x + r, y + r, fill="black")
+    draw.ellipse([x - r, y - r, x + r, y + r], fill="black")
+
+canvas.bind("<B1-Motion>", draw_on_canvas)
+
+def recognize_digit():
+    global model, image
+    resized_image = image.resize((28, 28))
+    grayscale_image = resized_image.convert('L')
+    image_array = np.array(grayscale_image) / 255.0
+    image_array = image_array.reshape((1, 28, 28, 1))
+    prediction = model.predict(image_array)
+    predicted_digit = np.argmax(prediction)
+    result_label.config(text=f"Predicted Digit: {predicted_digit}")
+
+recognize_button = Button(window, text="Recognize Digit", command=recognize_digit)
+recognize_button.pack()
+
+result_label = tk.Label(window, text="")
+result_label.pack()
+
+window.mainloop()
+
+```
